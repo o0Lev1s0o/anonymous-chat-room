@@ -1,7 +1,11 @@
+
+import { supportsScreenSharing } from '@livekit/components-core';
+import { mergeProps } from '@/livekit-react-offical/utils';
+
 import { ScreenSharePresets, Track, VideoPreset } from 'livekit-client';
 import * as React from 'react';
 import { ChatIcon, LeaveIcon } from '@/livekit-react-offical/assets/icons';
-import { ChatToggle, StartAudio, TrackToggle, DisconnectButton, useRoomContext } from '@livekit/components-react';
+import { ChatToggle, StartAudio, TrackToggle, DisconnectButton, useMaybeLayoutContext } from '@livekit/components-react';
 import { isMobileBrowser } from '@livekit/components-core';
 import { useLocalParticipantPermissions } from '@livekit/components-react';
 // import { useMediaQuery } from '../hooks/internal';
@@ -11,8 +15,12 @@ import { MediaDeviceMenu } from '@/components/MyMediaDeviceMenu';
 import { v_preset } from '@/lib/const';
 import { OptionPanel } from './OptionPannel';
 import { ShareVideoPannel } from './VideoShare/VideoSharePannel';
+import CameraMicIcon from './Icons/CameraMicIcon';
+import { useTranslation } from 'react-i18next';
 
-type ControlBarControls = {
+
+/** @public */
+export type ControlBarControls = {
   microphone?: boolean;
   camera?: boolean;
   chat?: boolean;
@@ -21,14 +29,15 @@ type ControlBarControls = {
   shareVideo?: boolean;
 };
 
-export type ControlBarProps = React.HTMLAttributes<HTMLDivElement> & {
+/** @public */
+export interface ControlBarProps extends React.HTMLAttributes<HTMLDivElement> {
   variation?: 'minimal' | 'verbose' | 'textOnly';
   controls?: ControlBarControls;
-};
+}
 
 /**
- * The ControlBar prefab component gives the user the basic user interface
- * to control their media devices and leave the room.
+ * The `ControlBar` prefab gives the user the basic user interface to control their
+ * media devices (camera, microphone and screen share), open the `Chat` and leave the room.
  *
  * @remarks
  * This component is build with other LiveKit components like `TrackToggle`,
@@ -40,13 +49,25 @@ export type ControlBarProps = React.HTMLAttributes<HTMLDivElement> & {
  *   <ControlBar />
  * </LiveKitRoom>
  * ```
+ * @public
  */
 export function ControlBar({ variation, controls, ...props }: ControlBarProps) {
-  const defaultVariation = useMediaQuery(`(max-width: 660px)`) ? 'minimal' : 'verbose';
-  const localPermissions = useLocalParticipantPermissions();
+  const [isChatOpen, setIsChatOpen] = React.useState(false);
+  const layoutContext = useMaybeLayoutContext();
+  
+  React.useEffect(() => {
+    if (layoutContext?.widget.state?.showChat !== undefined) {
+      setIsChatOpen(layoutContext?.widget.state?.showChat);
+    }
+  }, [layoutContext?.widget.state?.showChat]);
+  const isTooLittleSpace = useMediaQuery(`(max-width: ${isChatOpen ? 1000 : 760}px)`);
+
+  const defaultVariation = isTooLittleSpace ? 'minimal' : 'verbose';
   variation ??= defaultVariation;
 
   const visibleControls = { leave: true, ...controls };
+
+  const localPermissions = useLocalParticipantPermissions();
 
   if (!localPermissions) {
     visibleControls.camera = false;
@@ -70,8 +91,9 @@ export function ControlBar({ variation, controls, ...props }: ControlBarProps) {
     () => variation === 'textOnly' || variation === 'verbose',
     [variation],
   );
-
+  const { t, i18n } = useTranslation()
   const isMobile = React.useMemo(() => isMobileBrowser(), []);
+  const browserSupportsScreenSharing = supportsScreenSharing();
 
   const [isScreenShareEnabled, setIsScreenShareEnabled] = React.useState(false);
 
@@ -79,16 +101,63 @@ export function ControlBar({ variation, controls, ...props }: ControlBarProps) {
     setIsScreenShareEnabled(enabled);
   };
 
+  const htmlProps = mergeProps({ className: 'lk-control-bar' }, props);
+
   return (
-    <div className=" z-10 lk-control-bar" {...props}>
-      {visibleControls.microphone && (
+    <div className=" z-1 lk-control-bar" {...props}>
+        {/* use in mobile */}
+        {isMobile && (
+            <div className="dropdown dropdown-top">
+            <label tabIndex={0} className="btn btn-primary text-white">
+                <CameraMicIcon/>
+            </label>
+            <ul tabIndex={0} className="dropdown-content z-[1] menu shadow rounded-box">
+                <li>
+                {visibleControls.microphone && (
+                    <div className="bg-primary rounded-lg">
+                    <div className="flex">
+                    <TrackToggle className=' btn btn-primary' 
+                    style={{ color:"white"}}
+                    source={Track.Source.Microphone} showIcon={showIcon}
+                    >
+                        {showText && 'Microphone'}
+                    </TrackToggle>
+                    <div className=" relative flex-shrink-0 btn bg-primary border-none hover:bg-opacity-50 p-0">
+                        <MediaDeviceMenu kind="audioinput" />
+                    </div>
+                    </div>
+                    </div>
+                )}
+                </li>
+                <li>
+                {visibleControls.camera && (
+                    <div className="bg-primary rounded-lg">
+                    <div className="flex">
+                    <TrackToggle
+                    className=' btn btn-primary' 
+                    style={{ color:"white"}}
+                    source={Track.Source.Camera} showIcon={showIcon}>
+                        {showText && 'Camera'}
+                    </TrackToggle>
+                    <div className=" relative flex-shrink-0 btn bg-primary border-none hover:bg-opacity-50 p-0">
+                        <MediaDeviceMenu kind="videoinput" />
+                    </div>
+                    </div>
+                    </div>
+                )}
+                </li>
+            </ul>
+            </div>
+        )}
+        {/* use in pc */}
+      {visibleControls.microphone && !isMobile && (
         <div className="bg-primary rounded-lg">
         <div className="flex">
           <TrackToggle className=' btn btn-primary' 
           style={{ color:"white"}}
           source={Track.Source.Microphone} showIcon={showIcon}
           >
-            {showText && 'Microphone'}
+            {showText && t('mic')}
           </TrackToggle>
           <div className=" relative flex-shrink-0 btn bg-primary border-none hover:bg-opacity-50 p-0">
             <MediaDeviceMenu kind="audioinput" />
@@ -96,14 +165,14 @@ export function ControlBar({ variation, controls, ...props }: ControlBarProps) {
         </div>
         </div>
       )}
-      {visibleControls.camera && (
+      {visibleControls.camera && browserSupportsScreenSharing && !isMobile && (
         <div className="bg-primary rounded-lg">
         <div className="flex">
           <TrackToggle
            className=' btn btn-primary' 
            style={{ color:"white"}}
           source={Track.Source.Camera} showIcon={showIcon}>
-            {showText && 'Camera'}
+            {showText && t('camera')}
           </TrackToggle>
           <div className=" relative flex-shrink-0 btn bg-primary border-none hover:bg-opacity-50 p-0">
             <MediaDeviceMenu kind="videoinput" />
@@ -121,7 +190,7 @@ export function ControlBar({ variation, controls, ...props }: ControlBarProps) {
           showIcon={showIcon}
           onChange={onScreenShareChange}
         >
-          {showText && (isScreenShareEnabled ? 'Stop screen share' : 'Share screen')}
+          {showText && (isScreenShareEnabled ? t('stopShare') : t('screenShare'))}
         </TrackToggle>
         </div>
       )}
@@ -138,7 +207,7 @@ export function ControlBar({ variation, controls, ...props }: ControlBarProps) {
         >
                               
           {showIcon && <ChatIcon />}
-          {showText && 'Chat'}
+          {showText && t('chat')}
         </ChatToggle>
         </div>
       )}
@@ -150,7 +219,7 @@ export function ControlBar({ variation, controls, ...props }: ControlBarProps) {
         style={{ color:"white"}}
         >
           {showIcon && <LeaveIcon />}
-          {showText && 'Leave'}
+          {showText && t('leave')}
         </DisconnectButton>
       )}
       <StartAudio label="Start Audio"  className='btn btn-primary'/>

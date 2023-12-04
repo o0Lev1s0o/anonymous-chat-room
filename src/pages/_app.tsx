@@ -1,13 +1,14 @@
 
 import type { AppProps } from 'next/app';
-// import '@livekit/components-styles';
+import '@livekit/components-styles';
 // import '@/styles/components-styles';
-// import '@livekit/components-styles/prefabs';
+import '@livekit/components-styles/prefabs';
 // import '@/styles/general/index.css'
 import '../styles/globals.css';
 import { DefaultSeo } from 'next-seo';
 import TopBar from '@/components/TopBar';
 import Script from 'next/script';
+import '../i18n/config'; // 引用配置文件
 // TODO修改下面的相关信息
 function MyApp({ Component, pageProps }: AppProps) {
     return (
